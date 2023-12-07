@@ -1,0 +1,126 @@
+# Day 1: Trebutched?
+
+```elixir
+Mix.install([
+  {:kino, "== 0.10.0"}
+])
+```
+
+## Inputs
+
+```elixir
+example1_input =
+  Kino.Input.textarea("Example 1:")
+  |> Kino.render()
+
+example2_input =
+  Kino.Input.textarea("Example 2:")
+  |> Kino.render()
+
+input_file = Kino.Input.file("Input File:")
+```
+
+## Binary Pattern Matching
+
+```elixir
+defmodule Day1 do
+  @digits ~w(one two three four five six seven eight nine)
+  @digit_values Enum.with_index(@digits, 1)
+
+  def part1(input) do
+    input
+    |> Stream.map(&extract_numbers/1)
+    |> Stream.map(&calibrate/1)
+    |> Enum.reduce(&Kernel.+/2)
+  end
+
+  def part2(input) do
+    input
+    |> Stream.map(&extract_numbers(&1, :include_spelled))
+    |> Stream.map(&calibrate/1)
+    |> Enum.reduce(&Kernel.+/2)
+  end
+
+  defp extract_numbers(line, include_spelled \\ :skip_spelled)
+
+  for {digit, number} <- @digit_values do
+    defp extract_numbers(str = <<unquote(digit), _::binary>>, :include_spelled) do
+      all_but_first = binary_part(str, 1, byte_size(str) - 1)
+      [unquote(number) | extract_numbers(all_but_first, :include_spelled)]
+    end
+  end
+
+  defp extract_numbers(<<c, rest::binary>>, include_spelled) when c in ?0..?9,
+    do: [c - ?0 | extract_numbers(rest, include_spelled)]
+
+  defp extract_numbers(<<_::binary-size(1), rest::binary>>, include_spelled) do
+    extract_numbers(rest, include_spelled)
+  end
+
+  defp extract_numbers("", _include_spelled), do: []
+
+  defp calibrate(numbers) do
+    decimal = List.first(numbers)
+    unit = List.last(numbers)
+    decimal * 10 + unit
+  end
+end
+```
+
+### Part 1
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Example 1
+
+```elixir
+## 142
+example1_input
+|> Kino.Input.read()
+|> String.trim()
+|> String.split("\n", trim: true)
+|> Day1.part1()
+```
+
+#### Input File
+
+```elixir
+# 56506
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Day1.part1()
+```
+
+### Part 2
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Example 2
+
+```elixir
+## 281
+example2_input
+|> Kino.Input.read()
+|> String.trim()
+|> String.split("\n", trim: true)
+|> Day1.part2()
+```
+
+### Input File
+
+```elixir
+# 56017
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Day1.part2()
+```
+
+## Nimble Parsec solution
+
+```elixir
+# TODO
+```
