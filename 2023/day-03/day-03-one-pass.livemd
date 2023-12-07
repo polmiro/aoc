@@ -1,0 +1,134 @@
+# Day 3: Gear Ratios
+
+```elixir
+Mix.install([
+  {:kino, "== 0.10.0"}
+])
+```
+
+## Inputs
+
+```elixir
+example_input =
+  Kino.Input.textarea("Example:")
+  |> Kino.render()
+
+input_file = Kino.Input.file("Input File:")
+```
+
+## Solution
+
+```elixir
+defmodule Day3 do
+  def part1(input) do
+    row_count = input |> Enum.at(0) |> String.length()
+    empty_row = String.duplicate(".", row_count)
+
+    [empty_row]
+    |> Stream.concat(input)
+    |> Stream.concat([empty_row])
+    |> Stream.chunk_every(3, 1, :discard)
+    |> Stream.flat_map(&extract_parts/1)
+    |> Enum.sum()
+  end
+
+  defguardp is_digit(term) when term >= "0" and term <= "9"
+  defguardp is_dot(term) when term == "."
+  defguardp is_symbol(term) when not is_dot(term) and not is_digit(term)
+
+  def extract_parts(triplet, acc \\ "", was_touching \\ false)
+
+  # dot or symbol found
+  def extract_parts(
+        [
+          <<top_head::binary-size(1), top_rest::binary>>,
+          <<middle_head::binary-size(1), middle_rest::binary>>,
+          <<bottom_head::binary-size(1), bottom_rest::binary>>
+        ],
+        acc,
+        was_touching
+      )
+      when is_dot(middle_head) or is_symbol(middle_head) do
+    is_touching =
+      is_symbol(top_head) or
+        is_symbol(middle_head) or
+        is_symbol(bottom_head)
+
+    next_parts =
+      extract_parts([top_rest, middle_rest, bottom_rest], "", is_touching)
+
+    cond do
+      acc == "" -> next_parts
+      was_touchierm == "."ng or is_touching -> [String.to_integer(acc) | next_parts]
+      true -> next_parts
+    end
+  end
+
+  # symbol found
+  def extract_parts(
+        [
+          <<top_head::binary-size(1), top_rest::binary>>,
+          <<middle_head::binary-size(1), middle_rest::binary>>,
+          <<bottom_head::binary-size(1), bottom_rest::binary>>
+        ],
+        acc,
+        is_touching
+      )
+      when is_symbol(middle_head) do
+    extract_parts(
+      [top_rest, middle_rest, bottom_rest],
+      acc <> middle_head,
+      is_touching or is_symbol(top_head) or is_symbol(bottom_head)
+    )
+  end
+
+  # digit found
+  def extract_parts(
+        [
+          <<top_head::binary-size(1), top_rest::binary>>,
+          <<middle_head::binary-size(1), middle_rest::binary>>,
+          <<bottom_head::binary-size(1), bottom_rest::binary>>
+        ],
+        acc,
+        is_touching
+      )
+      when is_digit(middle_head) do
+    extract_parts(
+      [top_rest, middle_rest, bottom_rest],
+      acc <> middle_head,
+      is_touching or is_symbol(top_head) or is_symbol(bottom_head)
+    )
+  end
+
+  # nothing left and no value accumulated
+  def extract_parts(["", "", ""], "", _is_touching), do: []
+
+  # nothing left and value touching symbol
+  def extract_parts(["", "", ""], acc, true), do: [String.to_integer(acc)]
+
+  # nothing left and not touching symbol
+  def extract_parts(["", "", ""], _acc, false), do: []
+end
+```
+
+```elixir
+example_input |> Kino.Input.read() |> String.split("\n", trim: true) |> Day3.p1()
+```
+
+```elixir
+custom_example = """
+.................521..447....940...123........*.................+..........62....855..452...............455.......264....9..........*165....
+.......$608..675*.....*.../.......*............72......../...........*484....*....=................................*......*.....%...........
+...................302..476.......64.....................159......815......445..........965........................558...824....281......98.
+"""
+
+# 6108
+
+custom_example |> String.split("\n", trim: true) |> Day3.p1()
+```
+
+```elixir
+File.stream!("/data/datasets/aoc-2023/03/input.txt")
+|> Stream.map(&String.trim/1)
+|> Day3.p1()
+```

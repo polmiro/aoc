@@ -1,0 +1,204 @@
+# Day 3: Gear Ratios
+
+```elixir
+Mix.install([
+  {:kino, "== 0.10.0"}
+])
+```
+
+## Inputs
+
+```elixir
+example_input =
+  Kino.Input.textarea("Example:")
+  |> Kino.render()
+
+input_file = Kino.Input.file("Input File:")
+```
+
+## Solution
+
+```elixir
+defmodule Day3 do
+  def part1(input) do
+    positions = parse(input)
+    numbers = extract_numbers(positions)
+    symbols = extract_symbols(positions)
+
+    numbers
+    |> extract_engine_parts(symbols)
+    |> Enum.map(fn {_pos, part_number} -> part_number end)
+    |> Enum.sum()
+  end
+
+  def part2(input) do
+    positions = parse(input)
+    symbols = extract_symbols(positions)
+    numbers = extract_numbers(positions)
+    engine_parts = extract_engine_parts(numbers, symbols)
+    asterisks = extract_asterisks(positions)
+
+    asterisks
+    |> extract_gears(engine_parts)
+    |> Enum.map(&calculate_gear_ratio/1)
+    |> Enum.sum()
+  end
+
+  defp parse(input) do
+    for {row, i} <- Enum.with_index(input),
+        {char, j} <- String.graphemes(row) |> Enum.with_index(),
+        into: [] do
+      value =
+        case char do
+          <<n>> when n in ?0..?9 -> n - ?0
+          "." -> :period
+          s -> s
+        end
+
+      {{i, j}, value}
+    end
+  end
+
+  defp extract_numbers(positions) do
+    Enum.chunk_while(
+      positions,
+      nil,
+      fn
+        # No chunk to build
+        {_, v}, nil when not is_number(v) ->
+          {:cont, nil}
+
+        # Emit the current chunk
+        {_, v}, acc when not is_number(v) ->
+          {:cont, acc, nil}
+
+        # Capture beginning of chunk
+        {{i, j}, v}, nil when is_number(v) ->
+          {:cont, {{i, {j, j}}, v}}
+
+        # Build or emit current chunk
+        {{i, j}, v}, acc = {{acc_i, {acc_j, _acc_jj}}, acc_v} when is_number(v) ->
+          if i == acc_i do
+            {:cont, {{acc_i, {acc_j, j}}, 10 * acc_v + v}}
+          else
+            {:cont, acc, {{i, {j, j}}, v}}
+          end
+      end,
+      fn
+        nil -> {:cont, []}
+        acc -> {:cont, acc, []}
+      end
+    )
+  end
+
+  defp extract_asterisks(grid) do
+    for {pos, "*"} <- grid, do: {pos, :asterisk}
+  end
+
+  defp extract_symbols(grid) do
+    for {pos, <<s>>} <- grid, not (s >= ?0 and s <= ?9), do: {pos, :symbol}
+  end
+
+  defp extract_engine_parts(numbers, symbols) do
+    symbols_map = Enum.into(symbols, %{})
+    Enum.filter(numbers, &is_number_adjacent_to_symbol?(&1, symbols_map))
+  end
+
+  defp is_number_adjacent_to_symbol?({{i, {j, jj}}, _}, map) do
+    for x <- (i - 1)..(i + 1),
+        y <- (j - 1)..(jj + 1),
+        not (x == i and y >= j and y <= jj),
+        reduce: false do
+      acc -> acc or Map.has_key?(map, {x, y})
+    end
+  end
+
+  defp extract_gears(asterisks, engine_parts) do
+    engine_parts_map =
+      engine_parts
+      |> Enum.flat_map(fn {i, {j, jj}, part_number} ->
+        for x <- i,
+            y <- j..jj,
+            do: {{x, y}, {i, {j, jj}, part_number}}
+      end)
+      |> Enum.into(%{})
+
+    Enum.reduce(asterisks, [], fn {{i, j}, _}, acc ->
+      adjacent_engine_parts =
+        for x <- (i - 1)..(i + 1),
+            y <- (j - 1)..(j + 1),
+            not (x == i and y >= j),
+            uniq: true,
+            reduce: [] do
+          acc ->
+            case engine_parts_map[{x, y}] do
+              nil -> acc
+              engine_part -> [engine_part | acc]
+            end
+        end
+
+      if length(adjacent_engine_parts) == 2 do
+        [adjacent_engine_parts | acc]
+      else
+        acc
+      end
+    end)
+  end
+
+  defp calculate_gear_ratio({_pos, [part_number1, part_number2]}) do
+    part_number1 * part_number2
+  end
+end
+```
+
+### Part 1
+
+<!-- livebook:{"break_markdown":true} -->
+
+### Example 1
+
+```elixir
+# 4361
+example_input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Day3.part1()
+```
+
+#### Input file
+
+```elixir
+# 527144
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Stream.map(&String.trim/1)
+|> Day3.part1()
+```
+
+### Part 2
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Example 1
+
+```elixir
+# 467835
+example_input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Day3.part2()
+```
+
+#### Input file
+
+```elixir
+# ???
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Stream.map(&String.trim/1)
+|> Day3.part2()
+```
