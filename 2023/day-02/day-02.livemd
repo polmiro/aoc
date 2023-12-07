@@ -1,0 +1,144 @@
+# Day 2: Cube Conundrum
+
+```elixir
+Mix.install([
+  {:kino, "== 0.10.0"}
+])
+```
+
+## Inputs
+
+```elixir
+example1_input =
+  Kino.Input.textarea("Example 1:")
+  |> Kino.render()
+
+input_file = Kino.Input.file("Input File:")
+```
+
+## Solution
+
+```elixir
+defmodule Day2 do
+  @bag_cubes %{
+    "red" => 12,
+    "green" => 13,
+    "blue" => 14
+  }
+
+  def part1(input) do
+    input
+    |> Stream.map(&parse_game/1)
+    |> Stream.filter(&game_possible?/1)
+    |> Stream.map(&elem(&1, 0))
+    |> Enum.sum()
+  end
+
+  def part2(input) do
+    input
+    |> Stream.map(&parse_game/1)
+    |> Stream.map(&minimum_reveal/1)
+    |> Stream.map(&power_reveal/1)
+    |> Enum.sum()
+  end
+
+  defp game_possible?({_game_id, reveals}) do
+    Enum.all?(reveals, &reveal_possible?/1)
+  end
+
+  defp reveal_possible?(reveal) do
+    Enum.all?(reveal, fn {color, color_reveal} ->
+      color_reveal <= @bag_cubes[color]
+    end)
+  end
+
+  @doc """
+  iex> Day2.parse_game("Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green")
+  {
+    1,
+    [
+      %{"blue" => 3, "red" => 4},
+      %{"blue" => 6, "green" => 2, "red" => 1},
+      %{"green" => 2}
+    ]
+  }
+  """
+  def parse_game(text) do
+    ["Game " <> game_id_part, reveals_part] = String.split(text, ": ", trim: true)
+    game_id = String.to_integer(game_id_part)
+    reveals = parse_reveals(reveals_part)
+    {game_id, reveals}
+  end
+
+  defp parse_reveals(text) do
+    text
+    |> String.split("; ", trim: true)
+    |> Enum.map(fn reveal_part ->
+      reveal_part
+      |> String.split(", ", trim: true)
+      |> Enum.map(fn color_part ->
+        [number_part, color] = String.split(color_part, " ", trim: true)
+        number = String.to_integer(number_part)
+        {color, number}
+      end)
+      |> Enum.into(%{})
+    end)
+  end
+
+  defp minimum_reveal({_game_id, reveals}) do
+    Enum.reduce(reveals, %{}, fn reveal, acc ->
+      Map.merge(acc, reveal, fn _color, value_acc, number ->
+        max(value_acc, number)
+      end)
+    end)
+  end
+
+  defp power_reveal(reveal) do
+    reveal
+    |> Map.values()
+    |> Enum.reduce(&Kernel.*/2)
+  end
+end
+```
+
+### Part 1
+
+<!-- livebook:{"break_markdown":true} -->
+
+### Example 1
+
+```elixir
+example1_input
+|> Kino.Input.read()
+|> String.trim()
+|> String.split("\n", trim: true)
+|> Day2.part1()
+```
+
+#### Input file
+
+```elixir
+# 2449
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Stream.map(&String.trim/1)
+|> Day2.part1()
+```
+
+### Part 2
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Input file
+
+```elixir
+# 63981
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Stream.map(&String.trim/1)
+|> Day2.part2()
+```
