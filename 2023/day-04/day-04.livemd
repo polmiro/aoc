@@ -1,0 +1,151 @@
+# Day 4: Scratchcards
+
+```elixir
+Mix.install([
+  {:kino, "== 0.10.0"}
+])
+```
+
+## Inputs
+
+```elixir
+example_input =
+  Kino.Input.textarea("Example:")
+  |> Kino.render()
+
+input_file = Kino.Input.file("Input File:")
+```
+
+## Solution
+
+```elixir
+defmodule Day4 do
+  def part1(input) do
+    input
+    |> Stream.map(&parse_card/1)
+    |> Stream.map(&count_card_wins/1)
+    |> Stream.map(&calculate_points/1)
+    |> Stream.map(&elem(&1, 1))
+    |> Enum.sum()
+  end
+
+  def part2(input) do
+    card_wins =
+      input
+      |> Stream.map(&parse_card/1)
+      |> Stream.map(&count_card_wins/1)
+      |> Enum.into([])
+
+    card_copies = Map.new(card_wins, fn {card_id, _wins} -> {card_id, 1} end)
+
+    card_wins
+    |> process_copies(card_copies)
+    |> Enum.map(fn {_card_id, copies} -> copies end)
+    |> Enum.sum()
+  end
+
+  def process_copies([], card_copies), do: card_copies
+
+  def process_copies([{card_id, wins} | rest_card_wins], card_copies) do
+    card_copies =
+      for dup_id <- (card_id + 1)..(card_id + wins),
+          wins != 0,
+          reduce: card_copies do
+        acc ->
+          Map.update!(acc, dup_id, fn copies -> copies + card_copies[card_id] end)
+      end
+
+    process_copies(rest_card_wins, card_copies)
+  end
+
+  def parse_card(line) do
+    [header, content] = String.split(line, ": ", trim: true)
+    [winning_line, candidate_line] = String.split(content, " | ", trim: true)
+
+    ["Card", card_id] = String.split(header)
+    card_id = String.to_integer(card_id)
+
+    winning_numbers =
+      winning_line
+      |> String.split()
+      |> Enum.map(&String.to_integer/1)
+
+    candidate_numbers =
+      candidate_line
+      |> String.split()
+      |> Enum.map(&String.to_integer/1)
+
+    {card_id, winning_numbers, candidate_numbers}
+  end
+
+  def count_card_wins({card_id, win_numbers, candidate_numbers}) do
+    winning_set = MapSet.new(win_numbers)
+
+    win_count =
+      Enum.count(
+        candidate_numbers,
+        fn candidate -> MapSet.member?(winning_set, candidate) end
+      )
+
+    {card_id, win_count}
+  end
+
+  def calculate_points({card_id, 0}), do: {card_id, 0}
+
+  def calculate_points({card_id, winning_numbers_count}) do
+    {card_id, 2 ** (winning_numbers_count - 1)}
+  end
+end
+```
+
+### Part 1
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Example 1
+
+```elixir
+# 13
+example_input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Day4.part1()
+```
+
+#### Input File
+
+```elixir
+# 22674
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Stream.map(&String.trim/1)
+|> Day4.part1()
+```
+
+### Part 2
+
+<!-- livebook:{"break_markdown":true} -->
+
+#### Example 1
+
+```elixir
+# 30
+example_input
+|> Kino.Input.read()
+|> String.split("\n", trim: true)
+|> Day4.part2()
+```
+
+#### Input File
+
+```elixir
+# 5747443
+value = Kino.Input.read(input_file)
+
+Kino.Input.file_path(value.file_ref)
+|> File.stream!()
+|> Stream.map(&String.trim/1)
+|> Day4.part2()
+```
