@@ -1,0 +1,194 @@
+# Day 5: If You Give A Seed A Fertilizer
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day5 do
+  def part1(input) do
+    seeds = parse_seed_numbers(input)
+    category_mappings = parse_category_mappings(input)
+    find_lowest_location(seeds, category_mappings)
+  end
+
+  def part2(input) do
+    seeds = parse_seed_ranges(input)
+    category_mappings = parse_category_mappings(input)
+    find_lowest_location(seeds, category_mappings)
+  end
+
+  def parse_seed_numbers(input) do
+    input
+    |> parse_seed_line_numbers()
+    |> Stream.map(fn number -> number..number end)
+  end
+
+  def parse_seed_ranges(input) do
+    input
+    |> parse_seed_line_numbers()
+    |> Stream.chunk_every(2)
+    |> Stream.map(fn [start, length] -> start..(start + length - 1) end)
+  end
+
+  defp parse_seed_line_numbers(input) do
+    input
+    |> Enum.at(0)
+    |> String.trim_leading("seeds: ")
+    |> String.split()
+    |> Enum.map(&String.to_integer/1)
+  end
+
+  defp parse_category_mappings(input) do
+    input
+    |> Stream.drop(1)
+    |> Stream.chunk_by(fn row -> row == "" end)
+    |> Stream.drop_every(2)
+    |> Stream.map(&parse_mappings/1)
+  end
+
+  defp parse_mappings([_header_line | map_lines]) do
+    Enum.map(map_lines, fn line ->
+      [dst, src, len] = line |> String.split() |> Enum.map(&String.to_integer/1)
+      range = src..(src + len - 1)
+      offset = dst - src
+      {range, offset}
+    end)
+  end
+
+  defp find_lowest_location(seeds, category_mappings) do
+    category_mappings
+    |> Enum.reduce(seeds, &apply_category_mapping/2)
+    |> Enum.map(fn from.._ -> from end)
+    |> Enum.min()
+  end
+
+  defp apply_category_mapping(category_mappings, ranges) do
+    Enum.reduce(category_mappings, {ranges, []}, fn mapping, {unmapped, mapped} ->
+      {u, m} =
+        Enum.reduce(unmapped, {[], []}, fn range, {unmapped, mapped} ->
+          {u, m} = apply_mapping(range, mapping)
+          {Enum.concat(u, unmapped), Enum.concat(mapped, m)}
+        end)
+
+      {u, Enum.concat(mapped, m)}
+    end)
+    |> Tuple.to_list()
+    |> Enum.concat()
+  end
+
+  def apply_mapping(seed_range = s_from..s_to, {map_range = m_from..m_to, offset}) do
+    cond do
+      # No overlap
+      Range.disjoint?(seed_range, map_range) ->
+        {[seed_range], []}
+
+      # Seed range contained by map range
+      s_from >= m_from and s_to <= m_to ->
+        {[], [offset(seed_range, offset)]}
+
+      # Map range contained within seed range
+      s_from <= m_from and s_to >= m_to ->
+        chunk1 = s_from..(m_from - 1)
+        chunk2 = m_from..m_to
+        chunk3 = (m_to + 1)..s_to
+        {[chunk1, chunk3], [offset(chunk2, offset)]}
+
+      # Seed range overlap on its right side
+      s_from <= m_from ->
+        chunk1 = s_from..(m_from - 1)
+        chunk2 = m_from..s_to
+        {[chunk1], [offset(chunk2, offset)]}
+
+      # Seed range overlaps on its left side
+      s_from > m_from ->
+        chunk1 = s_from..m_to
+        chunk2 = (m_to + 1)..s_to
+        {[offset(chunk2, offset)], [chunk1]}
+    end
+  end
+
+  defp offset(from..to, offset) do
+    (from + offset)..(to + offset)
+  end
+end
+
+defmodule Day5Test do
+  use ExUnit.Case
+
+  @example_input """
+  seeds: 79 14 55 13
+
+  seed-to-soil map:
+  50 98 2
+  52 50 48
+
+  soil-to-fertilizer map:
+  0 15 37
+  37 52 2
+  39 0 15
+
+  fertilizer-to-water map:
+  49 53 8
+  0 11 42
+  42 0 7
+  57 7 4
+
+  water-to-light map:
+  88 18 7
+  18 25 70
+
+  light-to-temperature map:
+  45 77 23
+  81 45 19
+  68 64 13
+
+  temperature-to-humidity map:
+  0 69 1
+  1 0 69
+
+  humidity-to-location map:
+  60 56 37
+  56 93 4
+  """
+
+  describe "Part 1" do
+    test "Example 1" do
+      assert 35 ==
+               @example_input
+               |> String.split("\n")
+               |> Day5.part1()
+    end
+
+    test "Input File" do
+      assert 323_142_486 ==
+               "/Users/polmiro/Development/aoc/2023/day-05/input.txt"
+               |> File.stream!()
+               |> Stream.map(&String.trim/1)
+               |> Day5.part1()
+    end
+  end
+
+  describe "Part 2" do
+    test "Example 1" do
+      assert 46 ==
+               @example_input
+               |> String.split("\n")
+               |> Day5.part2()
+    end
+
+    test "Input File" do
+      assert 79_874_951 ==
+               "/Users/polmiro/Development/aoc/2023/day-05/input.txt"
+               |> File.stream!()
+               |> Stream.map(&String.trim/1)
+               |> Day5.part2()
+    end
+  end
+end
+
+ExUnit.run()
+```
