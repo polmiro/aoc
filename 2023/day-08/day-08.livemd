@@ -1,0 +1,156 @@
+# Day 8: Haunted Wasteland
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day8 do
+  @origin "AAA"
+
+  # Questionable use of LCM
+  # My initial part 2 solution did not really perform well enough.
+  # https://www.reddit.com/r/adventofcode/comments/18dfpub/2023_day_8_part_2_why_is_spoiler_correct/
+
+  def part1(input) do
+    {directions, map} = parse_map(input)
+    count_steps(directions, map, @origin)
+  end
+
+  def part2(input) do
+    {directions, map} = parse_map(input)
+
+    map
+    |> Map.keys()
+    |> Enum.filter(&String.ends_with?(&1, "A"))
+    |> Enum.map(&count_steps(directions, map, &1))
+    |> Enum.reduce(fn c, acc -> lcm(c, acc) end)
+  end
+
+  defp count_steps(directions, map, from) do
+    Enum.reduce_while(directions, {from, 0}, fn direction, {node, steps} ->
+      if String.ends_with?(node, "Z") do
+        {:halt, steps}
+      else
+        {:cont, {map[node][direction], steps + 1}}
+      end
+    end)
+  end
+
+  def parse_map(input) do
+    [directions_line, map_input] = String.split(input, "\n\n", trim: true)
+
+    directions =
+      directions_line
+      |> String.codepoints()
+      |> Stream.cycle()
+
+    map =
+      map_input
+      |> String.split("\n", trim: true)
+      |> Enum.map(&parse_node/1)
+      |> Enum.into(%{})
+
+    {directions, map}
+  end
+
+  defp parse_node(<<a::binary-3, " = (", b::binary-3, ", ", c::binary-3, ")">>) do
+    {a, %{"L" => b, "R" => c}}
+  end
+
+  defp lcm(0, 0), do: 0
+  defp lcm(a, b), do: div(a * b, Integer.gcd(a, b))
+end
+
+defmodule Day8Test do
+  use ExUnit.Case
+
+  @example1_input """
+  RL
+
+  AAA = (BBB, CCC)
+  BBB = (DDD, EEE)
+  CCC = (ZZZ, GGG)
+  DDD = (DDD, DDD)
+  EEE = (EEE, EEE)
+  GGG = (GGG, GGG)
+  ZZZ = (ZZZ, ZZZ)
+  """
+
+  @example2_input """
+  LLR
+
+  AAA = (BBB, BBB)
+  BBB = (AAA, ZZZ)
+  ZZZ = (ZZZ, ZZZ)
+  """
+
+  @example3_input """
+  LR
+
+  11A = (11B, XXX)
+  11B = (XXX, 11Z)
+  11Z = (11B, XXX)
+  22A = (22B, XXX)
+  22B = (22C, 22C)
+  22C = (22Z, 22Z)
+  22Z = (22B, 22B)
+  XXX = (XXX, XXX)
+  """
+
+  test ".parse_map/1" do
+    {directions, map} = Day8.parse_map(@example1_input)
+    assert Enum.take(directions, 8) == ~w(R L R L R L R L)
+
+    assert %{
+             "AAA" => %{"L" => "BBB", "R" => "CCC"},
+             "BBB" => %{"L" => "DDD", "R" => "EEE"},
+             "CCC" => %{"L" => "ZZZ", "R" => "GGG"},
+             "DDD" => %{"L" => "DDD", "R" => "DDD"},
+             "EEE" => %{"L" => "EEE", "R" => "EEE"},
+             "GGG" => %{"L" => "GGG", "R" => "GGG"},
+             "ZZZ" => %{"L" => "ZZZ", "R" => "ZZZ"}
+           } == map
+
+    {directions, map} = Day8.parse_map(@example2_input)
+    assert Enum.take(directions, 9) == ~w(L L R L L R L L R)
+
+    assert %{
+             "AAA" => %{"L" => "BBB", "R" => "BBB"},
+             "BBB" => %{"L" => "AAA", "R" => "ZZZ"},
+             "ZZZ" => %{"L" => "ZZZ", "R" => "ZZZ"}
+           } == map
+  end
+
+  test "Part 1: Example 1" do
+    assert 2 == Day8.part1(@example1_input)
+  end
+
+  test "Part 1: Example 2" do
+    assert 6 == Day8.part1(@example2_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 12599 ==
+             "/Users/polmiro/Development/aoc/2023/day-08/input.txt"
+             |> File.read!()
+             |> Day8.part1()
+  end
+
+  test "Part 2: Example 3" do
+    assert 6 == Day8.part2(@example3_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 0 ==
+             "/Users/polmiro/Development/aoc/2023/day-08/input.txt"
+             |> File.read!()
+             |> Day8.part2()
+  end
+end
+
+ExUnit.run()
+```
