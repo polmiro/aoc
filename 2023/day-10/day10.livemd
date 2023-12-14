@@ -1,0 +1,505 @@
+# Day 10: Pipe Maze
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+# defmodule Day9 do
+#   @directions [:north, :south, :east, :west]
+
+#   def part1(input) do
+#     grid = parse_grid(input)
+#     start = find_start(grid)
+
+#     grid
+#     |> collect_loop_from(start)
+#     |> calculate_furthest_distance()
+#   end
+
+#   def part2(input) do
+#     grid = parse_grid(input)
+#     start = find_start(grid)
+#     loop = collect_loop_from(grid, start)
+#     {rows, cols} = grid_size(grid)
+
+#     empty_grid(rows, cols)
+#     |> merge_loop(grid, loop)
+#     |> print_grid()
+#     |> count_enclosed_tiles(rows, cols)
+#   end
+
+#   defp parse_grid(input) do
+#     input
+#     |> String.split("\n", trim: true)
+#     |> Enum.with_index()
+#     |> Enum.flat_map(fn {line, i} ->
+#       line
+#       |> String.codepoints()
+#       |> Enum.with_index()
+#       |> Enum.map(fn {c, j} -> {{i, j}, parse_char(c)} end)
+#     end)
+#     |> Enum.into(%{})
+#   end
+
+#   defp parse_char("."), do: :.
+#   defp parse_char("S"), do: :S
+#   defp parse_char("F"), do: :F
+#   defp parse_char("7"), do: :"7"
+#   defp parse_char("J"), do: :J
+#   defp parse_char("|"), do: :|
+#   defp parse_char("L"), do: :L
+#   defp parse_char("-"), do: :-
+
+#   defp find_start(grid) do
+#     Enum.find_value(grid, fn {k, v} ->
+#       if v == :S, do: k, else: nil
+#     end)
+#   end
+
+#   defp collect_loop_from(grid, start_pos) do
+#     loop =
+#       @directions
+#       |> Enum.map(fn d -> {d, move(start_pos, d)} end)
+#       |> Enum.find_value(fn {d, i} ->
+#         collect_loop(grid, start_pos, i, d, [start_pos])
+#       end)
+
+#     before_pos = List.last(loop)
+#     after_pos = Enum.at(loop, 2)
+#     start_tile = connecting_tile(before_pos, start_pos, after_pos)
+#     List.replace_at(loop, 0, start_tile)
+#   end
+
+#   defp collect_loop(grid, origin, position, direction, loop)
+#   defp collect_loop(_grid, origin, origin, _direction, loop), do: loop
+#   defp collect_loop(_grid, _origin, nil, _direction, _loop), do: nil
+
+#   defp collect_loop(grid, origin, position, direction, loop) do
+#     IO.inspect(position)
+#     pipe = grid[position]
+#     new_direction = next_direction(direction, pipe)
+#     new_position = move(position, new_direction)
+#     collect_loop(grid, origin, new_position, new_direction, [position | loop])
+#   end
+
+#   defp calculate_furthest_distance(loop) do
+#     loop
+#     |> Enum.count()
+#     |> div(2)
+#   end
+
+#   defp grid_size(grid) do
+#     {{rows, cols}, _} = Enum.max_by(grid, fn {{i, j}, _} -> {i, j} end)
+#     {rows, cols}
+#   end
+
+#   defp empty_grid(rows, cols) do
+#     for(i <- 0..rows, j <- 0..cols, do: {{i, j}, :.}) |> Map.new()
+#   end
+
+#   defp merge_loop(grid, loop_grid, loop) do
+#     Map.merge(grid, Map.new(loop, &{&1, loop_grid[&1]}))
+#   end
+
+#   defp count_enclosed_tiles(grid, rows, cols) do
+#     for i <- 0..rows, reduce: 0 do
+#       ext_count ->
+#         for j <- 0..cols, reduce: {false, ext_count, nil} do
+#           {in?, count, cut} ->
+#             case {cut, grid[{i, j}], in?} do
+#               # pipe bendings, cancelling the side change
+#               {:F, :"7", in?} -> {not in?, count, nil}
+#               {:L, :J, in?} -> {not in?, count, nil}
+#               # crossing pipes
+#               {nil, :|, in?} -> {not in?, count, nil}
+#               {nil, :F, in?} -> {not in?, count, :F}
+#               {nil, :L, in?} -> {not in?, count, :L}
+#               # continue/finish to cross, keep changed side
+#               {cut, :-, in?} -> {in?, count, cut}
+#               {:F, :J, in?} -> {in?, count, nil}
+#               {:L, :"7", in?} -> {in?, count, nil}
+#               # counting inside positions, ignoring outside positions
+#               {_, :., true} -> {true, count + 1, nil}
+#               {_, :., false} -> {false, count, nil}
+#             end
+#         end
+#     end
+#   end
+
+#   defp print_grid(grid) do
+#     {{max_i, max_j}, _} = Enum.max_by(grid, fn {{i, j}, _} -> {i, j} end)
+
+#     IO.puts("\n")
+
+#     for i <- 0..max_i do
+#       row =
+#         for j <- 0..max_j, reduce: [] do
+#           acc -> [grid[{i, j}] | acc]
+#         end
+
+#       row |> Enum.reverse() |> IO.puts()
+#     end
+
+#     IO.puts("\n")
+#   end
+
+#   def connecting_tile({_, j}, _, {_, j}), do: :|
+#   def connecting_tile({i, _}, _, {i, _}), do: :-
+
+#   def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+#     when bi - 1 == mi and bj == mj and mi == ai and mj + 1 == aj,
+#     do: :"F"
+
+#   def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+#     when bi == mi and bj + 1 == mj and mi - 1 == ai and mj == aj,
+#     do: :"J"
+
+#   def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+#     when bi + 1 == mi and bj == mj and mi == ai and mj + 1 == aj,
+#     do: :"L"
+
+#   def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+#     when bi == mi and bj + 1 == mj and mi + 1 == ai and mj == aj,
+#     do: :"7"
+
+#   def connecting_tile(a, b, c), do: connecting_tile(c, b, a)
+
+#   defp next_direction(:north, :|), do: :north
+#   defp next_direction(:north, :"7"), do: :west
+#   defp next_direction(:north, :F), do: :east
+#   defp next_direction(:south, :|), do: :south
+#   defp next_direction(:south, :J), do: :west
+#   defp next_direction(:south, :L), do: :east
+#   defp next_direction(:east, :-), do: :east
+#   defp next_direction(:east, :J), do: :north
+#   defp next_direction(:east, :"7"), do: :south
+#   defp next_direction(:west, :-), do: :west
+#   defp next_direction(:west, :L), do: :north
+#   defp next_direction(:west, :F), do: :south
+#   defp next_direction(_, _), do: nil
+
+#   defp move({i, j}, :north), do: {i - 1, j}
+#   defp move({i, j}, :south), do: {i + 1, j}
+#   defp move({i, j}, :east), do: {i, j + 1}
+#   defp move({i, j}, :west), do: {i, j - 1}
+#   defp move(_, nil), do: nil
+# end
+
+# defmodule Day9Test do
+#   use ExUnit.Case
+
+#   @example1_input """
+#   ..--7
+#   .S-7.
+#   .|.|.
+#   .L-J.
+#   .....
+#   """
+
+#   @example2_input """
+#   -L|F7
+#   7S-7|
+#   L|7||
+#   -L-J|
+#   L|-JF
+#   """
+
+#   @example3_input """
+#   ..F7.
+#   .FJ|.
+#   SJ.L7
+#   |F--J
+#   LJ...
+#   """
+
+#   @example4_input """
+#   7-F7-
+#   .FJ|7
+#   SJLL7
+#   |F--J
+#   LJ.LJ
+#   """
+
+#   # test ".connecting_tile/2" do
+#   #   assert :- == Day9.connecting_tile({0, 0}, {0, 1}, {0, 2})
+#   #   assert :- == Day9.connecting_tile({0, 2}, {0, 1}, {0, 0})
+#   #   assert :| == Day9.connecting_tile({0, 0}, {1, 0}, {2, 0})
+#   #   assert :| == Day9.connecting_tile({2, 0}, {1, 0}, {0, 0})
+#   #   assert :F == Day9.connecting_tile({1, 0}, {0, 0}, {0, 1})
+#   #   assert :F == Day9.connecting_tile({0, 1}, {0, 0}, {1, 0})
+#   #   assert :J == Day9.connecting_tile({1, 0}, {1, 1}, {0, 1})
+#   #   assert :J == Day9.connecting_tile({0, 1}, {1, 1}, {1, 0})
+#   #   assert :L == Day9.connecting_tile({0, 0}, {1, 0}, {1, 1})
+#   #   assert :L == Day9.connecting_tile({1, 1}, {1, 0}, {0, 0})
+#   #   assert :"7" == Day9.connecting_tile({0, 0}, {0, 1}, {1, 1})
+#   #   assert :"7" == Day9.connecting_tile({1, 1}, {0, 1}, {0, 0})
+#   # end
+
+#   test "Part 1: Example 1" do
+#     assert 4 == Day9.part1(@example1_input)
+#   end
+
+#   # test "Part 1: Example 2" do
+#   #   assert 4 == Day9.part1(@example2_input)
+#   # end
+
+#   # test "Part 1: Example 3" do
+#   #   assert 8 == Day9.part1(@example3_input)
+#   # end
+
+#   # test "Part 1: Example 4" do
+#   #   assert 8 == Day9.part1(@example4_input)
+#   # end
+
+#   # test "Part 1: Input File" do
+#   #   assert 6754 ==
+#   #            "/Users/polmiro/Development/aoc/2023/day-10/input.txt"
+#   #            |> File.read!()
+#   #            |> Day9.part1()
+#   # end
+
+#   # test "Part 2: Example 2" do
+#   #   assert Day9.part2(@example1_input)
+#   # end
+# end
+
+# ExUnit.run()
+```
+
+```elixir
+defmodule Day9 do
+  @directions [:north, :south, :east, :west]
+
+  def part1(input) do
+    grid = parse_grid(input)
+    start = find_start(grid)
+
+    grid
+    |> collect_loop_from(start)
+    |> calculate_furthest_distance()
+  end
+
+  def part2(input) do
+    grid = parse_grid(input)
+    start = find_start(grid)
+    loop = collect_loop_from(grid, start)
+    {rows, cols} = grid_size(grid)
+
+    empty_grid(rows, cols)
+    |> merge_loop(grid, loop)
+    |> count_enclosed_tiles(rows, cols)
+  end
+
+  defp parse_grid(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, i} ->
+      line
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.map(fn {c, j} -> {{i, j}, parse_char(c)} end)
+    end)
+    |> Enum.into(%{})
+  end
+
+  defp parse_char("."), do: :empty
+  defp parse_char("S"), do: :start
+  defp parse_char("F"), do: {:south, :east}
+  defp parse_char("7"), do: {:south, :west}
+  defp parse_char("J"), do: {:north, :west}
+  defp parse_char("L"), do: {:north, :east}
+  defp parse_char("|"), do: {:north, :south}
+  defp parse_char("-"), do: {:east, :west}
+
+  defp find_start(grid) do
+    Enum.find_value(grid, fn {k, v} ->
+      if v == :start, do: k, else: nil
+    end)
+  end
+
+  defp collect_loop_from(grid, start_pos) do
+    loop =
+      @directions
+      |> Enum.map(fn d -> {d, move(start_pos, d)} end)
+      |> Enum.find_value(fn {d, i} ->
+        collect_loop(grid, start_pos, i, d, [start_pos])
+      end)
+
+    before_pos = List.last(loop)
+    after_pos = Enum.at(loop, 2)
+    start_tile = connecting_tile(before_pos, start_pos, after_pos)
+    List.replace_at(loop, 0, start_tile)
+  end
+
+  defp collect_loop(grid, origin, position, direction, loop)
+  defp collect_loop(_grid, origin, origin, _direction, loop), do: loop
+  defp collect_loop(_grid, _origin, nil, _direction, _loop), do: nil
+
+  defp collect_loop(grid, origin, position, direction, loop) do
+    pipe = grid[position]
+    new_direction = next_direction(direction, pipe)
+    new_position = move(position, new_direction)
+    collect_loop(grid, origin, new_position, new_direction, [position | loop])
+  end
+
+  defp calculate_furthest_distance(loop) do
+    loop
+    |> Enum.count()
+    |> div(2)
+  end
+
+  defp grid_size(grid) do
+    {{rows, cols}, _} = Enum.max_by(grid, fn {{i, j}, _} -> {i, j} end)
+    {rows, cols}
+  end
+
+  defp empty_grid(rows, cols) do
+    for(i <- 0..rows, j <- 0..cols, do: {{i, j}, :empty}) |> Map.new()
+  end
+
+  defp merge_loop(grid, loop_grid, loop) do
+    Map.merge(grid, Map.new(loop, &{&1, loop_grid[&1]}))
+  end
+
+  defp count_enclosed_tiles(grid, rows, cols) do
+    for i <- 0..rows, reduce: 0 do
+      ext_count ->
+        for j <- 0..cols, reduce: {false, ext_count, nil} do
+          {in?, count, cut} ->
+            case {cut, grid[{i, j}], in?} do
+              # pipe bendings, cancelling the side change
+              {{:south, :east}, {:south, :west}, in?} -> {not in?, count, nil}
+              {{:north, :east}, {:north, :west}, in?} -> {not in?, count, nil}
+              # crossing pipes
+              {nil, {:north, :south}, in?} -> {not in?, count, nil}
+              {nil, {:south, :east}, in?} -> {not in?, count, :F}
+              {nil, {:north, :east}, in?} -> {not in?, count, :L}
+              # continue/finish to cross, keep changed side
+              {cut, {:east, :west}, in?} -> {in?, count, cut}
+              {{:south, :east}, {:north, :west}, in?} -> {in?, count, nil}
+              {{:north, :east}, {:south, :west}, in?} -> {in?, count, nil}
+              # counting inside positions, ignoring outside positions
+              {_, :empty, true} -> {true, count + 1, nil}
+              {_, :empty, false} -> {false, count, nil}
+            end
+        end
+    end
+  end
+
+  def connecting_tile({_, j}, _, {_, j}), do: :|
+  def connecting_tile({i, _}, _, {i, _}), do: :-
+
+  def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+      when bi - 1 == mi and bj == mj and mi == ai and mj + 1 == aj,
+      do: :F
+
+  def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+      when bi == mi and bj + 1 == mj and mi - 1 == ai and mj == aj,
+      do: :J
+
+  def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+      when bi + 1 == mi and bj == mj and mi == ai and mj + 1 == aj,
+      do: :L
+
+  def connecting_tile({bi, bj}, {mi, mj}, {ai, aj})
+      when bi == mi and bj + 1 == mj and mi + 1 == ai and mj == aj,
+      do: :"7"
+
+  # def connecting_tile(a, b, c), do: connecting_tile(c, b, a)
+
+  defp next_direction(origin, {origin, destination}), do: destination
+  defp next_direction(origin, {destination, origin}), do: destination
+  defp next_direction(_, _), do: nil
+
+  defp move({i, j}, :north), do: {i - 1, j}
+  defp move({i, j}, :south), do: {i + 1, j}
+  defp move({i, j}, :east), do: {i, j + 1}
+  defp move({i, j}, :west), do: {i, j - 1}
+  defp move(_, nil), do: nil
+end
+
+defmodule Day9Test do
+  use ExUnit.Case
+
+  @example1_input """
+  ..--7
+  .S-7.
+  .|.|.
+  .L-J.
+  .....
+  """
+
+  @example2_input """
+  -L|F7
+  7S-7|
+  L|7||
+  -L-J|
+  L|-JF
+  """
+
+  @example3_input """
+  ..F7.
+  .FJ|.
+  SJ.L7
+  |F--J
+  LJ...
+  """
+
+  @example4_input """
+  7-F7-
+  .FJ|7
+  SJLL7
+  |F--J
+  LJ.LJ
+  """
+
+  test ".connecting_tile/2" do
+    assert :- == Day9.connecting_tile({0, 0}, {0, 1}, {0, 2})
+    assert :- == Day9.connecting_tile({0, 2}, {0, 1}, {0, 0})
+    assert :| == Day9.connecting_tile({0, 0}, {1, 0}, {2, 0})
+    assert :| == Day9.connecting_tile({2, 0}, {1, 0}, {0, 0})
+    assert :F == Day9.connecting_tile({1, 0}, {0, 0}, {0, 1})
+    assert :F == Day9.connecting_tile({0, 1}, {0, 0}, {1, 0})
+    assert :J == Day9.connecting_tile({1, 0}, {1, 1}, {0, 1})
+    assert :J == Day9.connecting_tile({0, 1}, {1, 1}, {1, 0})
+    assert :L == Day9.connecting_tile({0, 0}, {1, 0}, {1, 1})
+    assert :L == Day9.connecting_tile({1, 1}, {1, 0}, {0, 0})
+    assert :"7" == Day9.connecting_tile({0, 0}, {0, 1}, {1, 1})
+    assert :"7" == Day9.connecting_tile({1, 1}, {0, 1}, {0, 0})
+  end
+
+  test "Part 1: Example 1" do
+    assert 4 == Day9.part1(@example1_input)
+  end
+
+  # test "Part 1: Example 2" do
+  #   assert 4 == Day9.part1(@example2_input)
+  # end
+
+  # test "Part 1: Example 3" do
+  #   assert 8 == Day9.part1(@example3_input)
+  # end
+
+  # test "Part 1: Example 4" do
+  #   assert 8 == Day9.part1(@example4_input)
+  # end
+
+  # test "Part 1: Input File" do
+  #   assert 6754 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-10/input.txt"
+  #            |> File.read!()
+  #            |> Day9.part1()
+  # end
+
+  # test "Part 2: Example 2" do
+  #   assert Day9.part2(@example1_input)
+  # end
+end
+
+ExUnit.run()
+```
