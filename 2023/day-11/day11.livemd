@@ -1,0 +1,150 @@
+# Day 11:
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day11 do
+  def part1(input) do
+    cosmic_expansion(input, 2)
+  end
+
+  def part2(input) do
+    cosmic_expansion(input, 1_000_000)
+  end
+
+  def cosmic_expansion(input, expansion_rate) do
+    universe =
+      input
+      |> parse_universe()
+      |> expand_universe(expansion_rate)
+
+    universe
+    |> find_galaxies()
+    |> sum_shortest_paths(universe)
+  end
+
+  def parse_universe(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, i} ->
+      line
+      |> String.codepoints()
+      |> Enum.map(&parse_char(&1))
+      |> Enum.with_index()
+      |> Enum.map(fn {c, j} -> {{i, j}, c} end)
+    end)
+    |> Map.new()
+  end
+
+  def parse_char("."), do: 1
+  def parse_char("#"), do: :g
+
+  defp expand_universe(universe, expansion_rate) do
+    rows =
+      universe
+      |> Map.to_list()
+      |> Enum.group_by(fn {{i, _}, _v} -> i end)
+      |> Map.values()
+
+    cols =
+      universe
+      |> Map.to_list()
+      |> Enum.group_by(fn {{_i, j}, _v} -> j end)
+      |> Map.values()
+
+    Enum.concat(rows, cols)
+    |> Enum.reduce(universe, fn locations, acc ->
+      if Enum.all?(locations, fn {_, v} -> v != :g end) do
+        new_locations =
+          locations
+          |> Enum.map(fn {p, v} -> {p, v * expansion_rate} end)
+          |> Map.new()
+
+        Map.merge(acc, new_locations)
+      else
+        acc
+      end
+    end)
+  end
+
+  def find_galaxies(grid) do
+    grid
+    |> Enum.filter(fn {_, c} -> c == :g end)
+    |> Enum.map(fn {position, _} -> position end)
+  end
+
+  def sum_shortest_paths(galaxy_positions, universe) do
+    for a <- galaxy_positions,
+        b <- galaxy_positions,
+        a != b and a < b,
+        reduce: 0 do
+      acc -> acc + path_cost(universe, a, b)
+    end
+  end
+
+  def path_cost(universe, {from_i, from_j}, {to_i, to_j}) do
+    cost =
+      for j <- Enum.drop(from_j..to_j, 1), reduce: 0 do
+        acc -> acc + step_cost(universe, {to_i, j})
+      end
+
+    for i <- Enum.drop(from_i..to_i, 1), reduce: cost do
+      acc -> acc + step_cost(universe, {i, from_j})
+    end
+  end
+
+  def step_cost(universe, position) do
+    case universe[position] do
+      :g -> 1
+      v -> v
+    end
+  end
+end
+
+defmodule Day11Test do
+  use ExUnit.Case
+
+  @example_input """
+  ...#......
+  .......#..
+  #.........
+  ..........
+  ......#...
+  .#........
+  .........#
+  ..........
+  .......#..
+  #...#.....
+  """
+
+  test "Part 1: Example" do
+    assert 374 == Day11.part1(@example_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 10_165_598 ==
+             "/Users/polmiro/Development/aoc/2023/day-11/input.txt"
+             |> File.read!()
+             |> Day11.part1()
+  end
+
+  test "Part 2: Example" do
+    assert 82_000_210 == Day11.part2(@example_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 678_728_808_158 ==
+             "/Users/polmiro/Development/aoc/2023/day-11/input.txt"
+             |> File.read!()
+             |> Day11.part2()
+  end
+end
+
+ExUnit.run()
+```
