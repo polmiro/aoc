@@ -1,0 +1,194 @@
+# Day 13: Point of Incidence
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day13 do
+  def part1(input) do
+    point_of_incidence(input, false)
+  end
+
+  def part2(input) do
+    point_of_incidence(input, true)
+  end
+
+  def point_of_incidence(input, with_smudge) do
+    input
+    |> String.split("\n\n")
+    |> Enum.map(&parse_pattern/1)
+    |> Enum.map(&extract_reflections(&1, with_smudge))
+    |> summarize_reflections()
+  end
+
+  def parse_pattern(pattern) do
+    pattern
+    |> String.split()
+    |> Enum.reduce([], fn line, acc ->
+      row =
+        line
+        |> String.codepoints()
+        |> Enum.map(&parse_char/1)
+
+      [row | acc]
+    end)
+    |> Enum.reverse()
+  end
+
+  def parse_char("."), do: :a
+  def parse_char("#"), do: :r
+
+  def extract_reflections(pattern, with_smudge) do
+    extract_horizontal_reflection(pattern, with_smudge) ||
+      extract_vertical_reflection(pattern, with_smudge)
+  end
+
+  def extract_horizontal_reflection(pattern, with_smudge) do
+    case extract_reflection(pattern, with_smudge) do
+      nil -> nil
+      index -> {:horizontal, index}
+    end
+  end
+
+  def extract_vertical_reflection(pattern, with_smudge) do
+    case transpose(pattern) |> extract_reflection(with_smudge) do
+      nil -> nil
+      index -> {:vertical, index}
+    end
+  end
+
+  def extract_reflection(matrix, with_smudge) do
+    total = length(matrix)
+
+    matrix
+    |> reflection_candidates(with_smudge)
+    |> Enum.find_value(fn {i, with_smudge} ->
+      width = min(i + 1, total - i - 1)
+      extra = if i >= div(total, 2), do: total - 2 * width, else: 0
+
+      {left_window, remaining} =
+        matrix
+        |> Enum.drop(extra)
+        |> Enum.take(2 * width)
+        |> Enum.split(width - 1)
+
+      right_window = Enum.drop(remaining, 2)
+
+      if is_matrix_equal(left_window, right_window, with_smudge), do: i, else: nil
+    end)
+  end
+
+  def is_matrix_equal(left, right, with_smudge) do
+    right = Enum.reverse(right)
+    do_is_matrix_equal(left, right, with_smudge)
+  end
+
+  def do_is_matrix_equal([l | left], [r | right], with_smudge) do
+    case is_list_equal(l, r, with_smudge) do
+      false ->
+        false
+
+      {true, with_smudge} ->
+        do_is_matrix_equal(left, right, with_smudge)
+    end
+  end
+
+  def do_is_matrix_equal([], [], true), do: false
+  def do_is_matrix_equal([], [], false), do: true
+
+  def is_list_equal([c | left], [c | right], with_smudge),
+    do: is_list_equal(left, right, with_smudge)
+
+  def is_list_equal([_ | left], [_ | right], true), do: is_list_equal(left, right, false)
+  def is_list_equal([], [], with_smudge), do: {true, with_smudge}
+  def is_list_equal(_, _, _), do: false
+
+  def reflection_candidates(matrix, with_smudge) do
+    matrix
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.with_index()
+    |> Enum.reduce([], fn {[left, right], index}, acc ->
+      case is_list_equal(left, right, with_smudge) do
+        false -> acc
+        {true, with_smudge} -> [{index, with_smudge} | acc]
+      end
+    end)
+  end
+
+  def transpose(matrix) do
+    Enum.zip(matrix) |> Enum.map(&Tuple.to_list/1)
+  end
+
+  def summarize_reflections(reflections) do
+    reflections
+    |> Enum.map(fn
+      {:horizontal, i} -> (i + 1) * 100
+      {:vertical, j} -> j + 1
+    end)
+    |> Enum.sum()
+  end
+
+  def log_matrix(matrix) do
+    Enum.each(matrix, fn row ->
+      Enum.map(row, fn
+        :r -> "#"
+        :a -> "."
+      end)
+      |> Enum.join()
+      |> IO.puts()
+    end)
+
+    IO.puts("")
+  end
+end
+
+defmodule Day13Test do
+  use ExUnit.Case
+
+  @example_input """
+  #.##..##.
+  ..#.##.#.
+  ##......#
+  ##......#
+  ..#.##.#.
+  ..##..##.
+  #.#.##.#.
+
+  #...##..#
+  #....#..#
+  ..##..###
+  #####.##.
+  #####.##.
+  ..##..###
+  #....#..#
+  """
+
+  test "Part 1: Example Input" do
+    assert 405 == Day13.part1(@example_input)
+  end
+
+  test "Part 1: File Input" do
+    assert 30_158 ==
+             "/Users/polmiro/Development/aoc/2023/day-13/input.txt"
+             |> File.read!()
+             |> Day13.part1()
+  end
+
+  test "Part 2: Example Input" do
+    assert 400 == Day13.part2(@example_input)
+  end
+
+  test "Part 2: File Input" do
+    assert 36_474 ==
+             "/Users/polmiro/Development/aoc/2023/day-13/input.txt"
+             |> File.read!()
+             |> Day13.part2()
+  end
+end
+
+ExUnit.run()
+```
