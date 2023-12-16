@@ -1,0 +1,113 @@
+# Day 15: Lens Library
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day15 do
+  def part1(input) do
+    input
+    |> String.trim()
+    |> String.split(",")
+    |> Enum.map(&hash/1)
+    |> Enum.sum()
+  end
+
+  def part2(input) do
+    input
+    |> String.trim()
+    |> String.split(",")
+    |> Enum.map(&parse_step/1)
+    |> Enum.reduce(%{}, &follow_step/2)
+    |> Enum.reduce(0, fn {box_number, content}, total ->
+      content
+      |> Enum.reverse()
+      |> Enum.with_index(1)
+      |> Enum.reduce(total, fn {{_label, focal}, slot}, acc ->
+        focusing_power = (1 + box_number) * slot * focal
+        acc + focusing_power
+      end)
+    end)
+  end
+
+  def parse_step(step) do
+    case String.split(step, ~r/\=|\-/, include_captures: true, parts: 2) do
+      [label, "=", focal] -> {:=, hash(label), label, String.to_integer(focal)}
+      [label, "-", _] -> {:-, hash(label), label}
+    end
+  end
+
+  def follow_step({:=, box_number, label, focal}, boxes) do
+    Map.update(boxes, box_number, [{label, focal}], fn content ->
+      {replaced, updated_content} =
+        Enum.reduce(content, {false, []}, fn
+          {^label, _}, {_, content} -> {true, [{label, focal} | content]}
+          other, {replaced, content} -> {replaced, [other | content]}
+        end)
+
+      if replaced, do: updated_content |> Enum.reverse(), else: [{label, focal} | content]
+    end)
+  end
+
+  def follow_step({:-, box_number, label}, boxes) do
+    Map.get_and_update(boxes, box_number, fn
+      nil ->
+        :pop
+
+      content ->
+        case Enum.reject(content, fn {l, _} -> l == label end) do
+          [] -> :pop
+          new_content -> {content, new_content}
+        end
+    end)
+    |> elem(1)
+  end
+
+  def hash(text) do
+    text
+    |> String.to_charlist()
+    |> Enum.reduce(0, fn ascii, hash ->
+      rem((hash + ascii) * 17, 256)
+    end)
+  end
+end
+
+defmodule Day15Test do
+  use ExUnit.Case
+
+  @example1_input "HASH"
+  @example2_input "rn=1,cm-,qp=3,cm=2,qp-,pc=4,ot=9,ab=5,pc-,pc=6,ot=7"
+
+  test "Part 1: Example 1 Input" do
+    assert 52 == Day15.part1(@example1_input)
+  end
+
+  test "Part 1: Example 2 Input" do
+    assert 1320 == Day15.part1(@example2_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 516_657 ==
+             "/Users/polmiro/Development/aoc/2023/day-15/input.txt"
+             |> File.read!()
+             |> Day15.part1()
+  end
+
+  test "Part 2: Example 2 Input" do
+    assert 145 == Day15.part2(@example2_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 210_906 ==
+             "/Users/polmiro/Development/aoc/2023/day-15/input.txt"
+             |> File.read!()
+             |> Day15.part2()
+  end
+end
+
+ExUnit.run()
+```
