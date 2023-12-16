@@ -1,0 +1,144 @@
+# Day 14: Parabolic Reflector Dish
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day14 do
+  def part1(input) do
+    input
+    |> parse_input()
+    |> tilt()
+    |> calculate_load()
+  end
+
+  def part2(input) do
+    input
+    |> parse_input()
+    |> spin()
+    |> calculate_load()
+  end
+
+  def parse_input(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      line
+      |> String.codepoints()
+      |> Enum.map(fn
+        "O" -> :O
+        "." -> :.
+        "#" -> :C
+      end)
+    end)
+    |> rotate_cw()
+  end
+
+  def spin(matrix, times \\ 1_000_000_000) do
+    {matrices, cycle_start, cycle_end} =
+      matrix
+      |> Stream.iterate(&cycle/1)
+      |> Stream.with_index(0)
+      |> Enum.reduce_while({%{}, %{}}, fn {matrix, i}, {matrices, history} ->
+        if cycle_start = history[matrix] do
+          {:halt, {matrices, cycle_start, i}}
+        else
+          history = Map.put(history, matrix, i)
+          matrices = Map.put(matrices, i, matrix)
+          {:cont, {matrices, history}}
+        end
+      end)
+
+    cycle_size = cycle_end - cycle_start
+    index = cycle_start + rem(times - cycle_start, cycle_size)
+    matrices[index]
+  end
+
+  def cycle(matrix) do
+    # Notice rotating clockwise given grid is rotate to favour south to north access
+    matrix
+    |> tilt()
+    |> rotate_cw()
+    |> tilt()
+    |> rotate_cw()
+    |> tilt()
+    |> rotate_cw()
+    |> tilt()
+    |> rotate_cw()
+  end
+
+  def tilt(matrix), do: Enum.map(matrix, &tilt_row/1)
+  def tilt_row(row, rocks \\ 0)
+  def tilt_row([], r), do: List.duplicate(:O, r)
+  def tilt_row([:. | row], r), do: [:. | tilt_row(row, r)]
+  def tilt_row([:O | row], r), do: tilt_row(row, r + 1)
+  def tilt_row([:C | row], r), do: List.duplicate(:O, r) ++ [:C | tilt_row(row, 0)]
+
+  def calculate_load(matrix) do
+    matrix
+    |> Enum.map(fn row ->
+      row
+      |> Enum.with_index()
+      |> Enum.filter(fn {c, _} -> c == :O end)
+      |> Enum.map(fn {_, index} -> index + 1 end)
+      |> Enum.sum()
+    end)
+    |> Enum.sum()
+  end
+
+  # Stack rocks at current position
+  # n * n - 1 / 2
+  def rocks_load(d, r) do
+    div((d + 1) * d, 2) - div((d + 1 - r) * (d + -r), 2)
+  end
+
+  def transpose(matrix), do: Enum.zip(matrix) |> Enum.map(&Tuple.to_list/1)
+  def rotate_cw(matrix), do: transpose(matrix) |> Enum.map(&Enum.reverse/1)
+  def rotate_ccw(matrix), do: transpose(matrix) |> Enum.reverse()
+end
+
+defmodule Day14Test do
+  use ExUnit.Case
+
+  @example_input """
+  O....#....
+  O.OO#....#
+  .....##...
+  OO.#O....O
+  .O.....O#.
+  O.#..O.#.#
+  ..O..#O..O
+  .......O..
+  #....###..
+  #OO..#....
+  """
+
+  test "Part 1: Example Input" do
+    assert 136 == Day14.part1(@example_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 109_098 ==
+             "/Users/polmiro/Development/aoc/2023/day-14/input.txt"
+             |> File.read!()
+             |> Day14.part1()
+  end
+
+  test "Part 2: Example Input" do
+    assert 64 == Day14.part2(@example_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 100_064 ==
+             "/Users/polmiro/Development/aoc/2023/day-14/input.txt"
+             |> File.read!()
+             |> Day14.part2()
+  end
+end
+
+ExUnit.run()
+```
