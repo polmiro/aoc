@@ -1,0 +1,164 @@
+# Day 16: The Floor Will Be Lava
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day16 do
+  def part1(input) do
+    input
+    |> parse_grid()
+    |> propagate_beam({:right, {0, 0}})
+    |> count_energized()
+  end
+
+  def part2(input) do
+    grid = parse_grid(input)
+
+    all_starting_vectors(grid)
+    |> Enum.map(fn vector ->
+      grid
+      |> propagate_beam(vector)
+      |> count_energized()
+    end)
+    |> Enum.max()
+  end
+
+  def parse_grid(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {row, i}, grid ->
+      row
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.reduce(grid, fn {c, j}, acc ->
+        energized_from = MapSet.new()
+        char = parse_char(c)
+        Map.put(acc, {i, j}, {energized_from, char})
+      end)
+    end)
+  end
+
+  def parse_char("."), do: :.
+  def parse_char("/"), do: :/
+  def parse_char("\\"), do: :\\
+  def parse_char("|"), do: :|
+  def parse_char("-"), do: :-
+
+  def all_starting_vectors(grid) do
+    {{max_i, max_j}, _} = Enum.max_by(grid, fn {{i, j}, _} -> {i, j} end)
+
+    Enum.concat([
+      for(j <- 0..max_j, do: {:down, {0, j}}),
+      for(j <- 0..max_j, do: {:up, {max_i, j}}),
+      for(i <- 0..max_i, do: {:right, {i, 0}}),
+      for(i <- 0..max_i, do: {:left, {i, max_j}})
+    ])
+  end
+
+  def propagate_beam(grid, [vector1, vector2]) do
+    grid
+    |> propagate_beam(vector1)
+    |> propagate_beam(vector2)
+  end
+
+  def propagate_beam(grid, vector = {direction, position}) do
+    case grid[position] do
+      nil ->
+        grid
+
+      {energized_from, char} ->
+        if MapSet.member?(energized_from, direction) do
+          grid
+        else
+          grid
+          |> energize(vector)
+          |> propagate_beam(next_move(vector, char))
+        end
+    end
+  end
+
+  def next_move({direction, p}, :.), do: step({direction, p})
+
+  def next_move({d, p}, :-) when d in [:left, :right], do: step({d, p})
+  def next_move({d, p}, :-) when d in [:up, :down], do: [step({:left, p}), step({:right, p})]
+  def next_move({d, p}, :|) when d in [:up, :down], do: step({d, p})
+  def next_move({d, p}, :|) when d in [:left, :right], do: [step({:up, p}), step({:down, p})]
+
+  def next_move({:left, p}, :/), do: step({:down, p})
+  def next_move({:right, p}, :/), do: step({:up, p})
+  def next_move({:up, p}, :/), do: step({:right, p})
+  def next_move({:down, p}, :/), do: step({:left, p})
+
+  def next_move({:left, p}, :\\), do: step({:up, p})
+  def next_move({:right, p}, :\\), do: step({:down, p})
+  def next_move({:up, p}, :\\), do: step({:left, p})
+  def next_move({:down, p}, :\\), do: step({:right, p})
+
+  def step({:left, {i, j}}), do: {:left, {i, j - 1}}
+  def step({:right, {i, j}}), do: {:right, {i, j + 1}}
+  def step({:up, {i, j}}), do: {:up, {i - 1, j}}
+  def step({:down, {i, j}}), do: {:down, {i + 1, j}}
+
+  def energize(grid, {direction, position}) do
+    Map.update(grid, position, nil, fn {energized_from, char} ->
+      {MapSet.put(energized_from, direction), char}
+    end)
+  end
+
+  def count_energized(grid) do
+    grid
+    |> Enum.into([])
+    |> List.flatten()
+    |> Enum.count(fn {_, {energized_from, _}} ->
+      Enum.any?(energized_from)
+    end)
+  end
+end
+
+defmodule Day16Test do
+  use ExUnit.Case
+
+  @example_input """
+  .|...\\....
+  |.-.\\.....
+  .....|-...
+  ........|.
+  ..........
+  .........\\
+  ..../.\\\\..
+  .-.-/..|..
+  .|....-|.\\
+  ..//.|....
+  """
+
+  test "Part 1: Example 1 Input" do
+    assert 46 == Day16.part1(@example_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 8389 ==
+             "/Users/polmiro/Development/aoc/2023/day-16/input.txt"
+             |> File.read!()
+             |> Day16.part1()
+  end
+
+  test "Part 2: Example 2 Input" do
+    assert 51 == Day16.part2(@example_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 8564 ==
+             "/Users/polmiro/Development/aoc/2023/day-16/input.txt"
+             |> File.read!()
+             |> Day16.part2()
+  end
+end
+
+ExUnit.run()
+```
