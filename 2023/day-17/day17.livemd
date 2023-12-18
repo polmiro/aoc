@@ -1,0 +1,194 @@
+# Day 17: Clumsy Crucible
+
+```elixir
+Mix.install([{:heap, "~> 3.0"}])
+
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day17 do
+  @type grid :: %{position => heat_loss :: integer}
+  @type position :: {number, number}
+  @type direction :: direction :: {di :: -1..1, dj :: -1..1}
+  @type momentum :: number
+  @type crucible :: {position, direction, momentum}
+
+  def part1(input) do
+    input
+    |> parse_grid()
+    |> minimum_heat_loss(&next_crucible_positions/2)
+  end
+
+  def part2(input) do
+    input
+    |> parse_grid()
+    |> minimum_heat_loss(&next_ultra_crucible_positions/2)
+  end
+
+  def parse_grid(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, i} ->
+      line
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.map(fn {c, j} -> {{i, j}, String.to_integer(c)} end)
+    end)
+    |> Map.new()
+  end
+
+  def minimum_heat_loss(grid, next_positions) do
+    {target, _} = Enum.max_by(grid, fn {{i, j}, _} -> {i, j} end)
+    seen = MapSet.new()
+
+    {heat_loss, path} =
+      Heap.min()
+      |> Heap.push({0, {{0, 1}, {0, 1}, 1}, []})
+      |> Heap.push({0, {{1, 0}, {1, 0}, 1}, []})
+      |> search(grid, seen, target, next_positions)
+
+    IO.inspect(path)
+
+    heat_loss
+  end
+
+  def search(heap, grid, seen, target, next_positions) do
+    {heat_loss, current = {position, _, _}, path} = Heap.root(heap)
+    heap = Heap.pop(heap)
+
+    cond do
+      position == target ->
+        {heat_loss + grid[target], path |> Enum.reverse()}
+
+      MapSet.member?(seen, current) ->
+        search(heap, grid, seen, target, next_positions)
+
+      true ->
+        seen = MapSet.put(seen, current)
+        heat_loss = heat_loss + grid[position]
+
+        next_positions.(current, target)
+        |> Enum.reduce(heap, fn next, heap ->
+          Heap.push(heap, {heat_loss, next, [position | path]})
+        end)
+        |> search(grid, seen, target, next_positions)
+    end
+  end
+
+  def next_crucible_positions({position, direction, momentum}, target) do
+    case momentum do
+      3 -> [left(direction), right(direction)]
+      _ -> [left(direction), right(direction), straight(direction)]
+    end
+    |> Enum.reduce([], fn new_direction, acc ->
+      new_position = step(position, new_direction)
+
+      cond do
+        out_of_bounds?(new_position, target) ->
+          acc
+
+        true ->
+          new_momentum = if new_direction == direction, do: momentum + 1, else: 1
+          current = {new_position, new_direction, new_momentum}
+          [current | acc]
+      end
+    end)
+  end
+
+  def next_ultra_crucible_positions({position, direction, momentum}, target) do
+    directions =
+      cond do
+        momentum < 4 -> [straight(direction)]
+        momentum == 9 -> [left(direction), right(direction)]
+        true -> [straight(direction), left(direction), right(direction)]
+      end
+
+    Enum.reduce(directions, [], fn new_direction, acc ->
+      new_position = step(position, new_direction)
+
+      cond do
+        out_of_bounds?(new_position, target) ->
+          acc
+
+        new_position == target && direction == new_direction && momentum < 3 ->
+          acc
+
+        true ->
+          new_momentum = if new_direction == direction, do: momentum + 1, else: 1
+          current = {new_position, new_direction, new_momentum}
+          [current | acc]
+      end
+    end)
+  end
+
+  def out_of_bounds?({i, j}, {max_i, max_j}) do
+    i < 0 || i > max_i || j < 0 || j > max_j
+  end
+
+  def straight(d), do: d
+  def left({di, dj}), do: {-dj, -di}
+  def right({di, dj}), do: {dj, di}
+  def step({i, j}, {di, dj}), do: {i + di, j + dj}
+end
+
+defmodule Day17Test do
+  use ExUnit.Case
+
+  @example_input """
+  2413432311323
+  3215453535623
+  3255245654254
+  3446585845452
+  4546657867536
+  1438598798454
+  4457876987766
+  3637877979653
+  4654967986887
+  4564679986453
+  1224686865563
+  2546548887735
+  4322674655533
+  """
+
+  @example2_input """
+  111111111111
+  999999999991
+  999999999991
+  999999999991
+  999999999991
+  """
+
+  # test "Part 1: Example Input" do
+  #   assert 102 == Day17.part1(@example_input)
+  # end
+
+  # test "Part 1: Input File" do
+  #   assert 1238 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-17/input.txt"
+  #            |> File.read!()
+  #            |> Day17.part1()
+  # end
+
+  # test "Part 2: Example Input" do
+  #   assert 94 == Day17.part2(@example_input)
+  # end
+
+  test "Part 2: Example 2 Input" do
+    assert 71 == Day17.part2(@example2_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 0 ==
+             "/Users/polmiro/Development/aoc/2023/day-17/input.txt"
+             |> File.read!()
+             |> Day17.part2()
+  end
+end
+
+ExUnit.run()
+```
