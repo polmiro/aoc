@@ -1,0 +1,140 @@
+# Day 18: Lavaduct Lagoon
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day18 do
+  @type direction :: {0, 1} | {1, 0} | {0, -1} | {-1, 0}
+  @type distance :: number
+  @type instruction :: {direction, distance}
+  @type position :: {number, number}
+
+  def part1(input) do
+    instructions = parse(input)
+    boundary_points = get_boundary_points(instructions)
+    vertices = get_vertices(instructions)
+    volume(vertices, boundary_points)
+  end
+
+  def part2(input) do
+    instructions = parse_using_color(input)
+    boundary_points = get_boundary_points(instructions)
+    vertices = get_vertices(instructions)
+    volume(vertices, boundary_points)
+  end
+
+  @spec parse(String.t()) :: list(instruction)
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      [a, b, _c] = String.split(line)
+      {parse_direction(a), String.to_integer(b)}
+    end)
+  end
+
+  @spec parse_using_color(String.t()) :: list(instruction)
+  def parse_using_color(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      [_, _, c] = String.split(line)
+      <<"(#", hex::binary-size(5), d::binary-size(1), ")">> = c
+      {parse_direction(d), String.to_integer(hex, 16)}
+    end)
+  end
+
+  @spec parse_direction(char) :: direction
+  def parse_direction("R"), do: {0, 1}
+  def parse_direction("D"), do: {1, 0}
+  def parse_direction("U"), do: {-1, 0}
+  def parse_direction("L"), do: {0, -1}
+  def parse_direction("0"), do: {0, 1}
+  def parse_direction("1"), do: {1, 0}
+  def parse_direction("2"), do: {0, -1}
+  def parse_direction("3"), do: {-1, 0}
+
+  @spec get_vertices(list(instruction)) :: list(position)
+  def get_vertices(instructions) do
+    Enum.reduce(instructions, [{0, 0}], fn {{di, dj}, d}, l = [{i, j} | _] ->
+      [{i + d * di, j + d * dj} | l]
+    end)
+  end
+
+  @spec get_boundary_points(list(instruction)) :: number
+  def get_boundary_points(instructions) do
+    Enum.reduce(instructions, 0, fn {_, d}, acc -> acc + d end)
+  end
+
+  # Shoelace and Pick's theorem
+  @spec volume(list(position), number) :: number
+  def volume(vertices, boundary_points) do
+    vertices
+    |> Stream.cycle()
+    |> Stream.chunk_every(3, 1)
+    |> Enum.take(length(vertices))
+    |> Enum.reduce(0, fn [{_, xj}, {yi, _}, {_, zj}], acc ->
+      acc + yi * (xj - zj)
+    end)
+    |> div(2)
+    |> abs()
+    |> Kernel.-(div(boundary_points, 2))
+    |> Kernel.+(1)
+    |> Kernel.+(boundary_points)
+  end
+end
+
+defmodule Day18Test do
+  use ExUnit.Case
+
+  @example_input """
+  R 6 (#70c710)
+  D 5 (#0dc571)
+  L 2 (#5713f0)
+  D 2 (#d2c081)
+  R 2 (#59c680)
+  D 2 (#411b91)
+  L 5 (#8ceee2)
+  U 2 (#caa173)
+  L 1 (#1b58a2)
+  U 2 (#caa171)
+  R 2 (#7807d2)
+  U 3 (#a77fa3)
+  L 2 (#015232)
+  U 2 (#7a21e3)
+  """
+
+  test "Part 1: Example Input" do
+    assert 62 == Day18.part1(@example_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 36725 ==
+             "/Users/polmiro/Development/aoc/2023/day-18/input.txt"
+             |> File.read!()
+             |> Day18.part1()
+  end
+
+  test "Part 2: Example Input" do
+    assert 952_408_144_115 == Day18.part2(@example_input)
+  end
+
+  test "Part 2: Input File" do
+    assert 97_874_103_749_720 ==
+             "/Users/polmiro/Development/aoc/2023/day-18/input.txt"
+             |> File.read!()
+             |> Day18.part2()
+  end
+end
+
+ExUnit.run()
+```
+
+```elixir
+
+```
