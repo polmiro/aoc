@@ -1,0 +1,277 @@
+# Day 20: Pulse Propagation
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day20 do
+  @type low_pulse :: false
+  @type high_pulse :: true
+  @type pulse :: low_pulse | high_pulse
+  @type flip_flop :: {:flip, status :: boolean, destination :: String.t()}
+  @type conjunction ::
+          {:conj, memory :: %{required(String.t()) => boolean}, destination :: String.t()}
+  @type broadcaster :: {:broad, list(destination :: String.t())}
+  @type module_description :: flip_flop | conjunction | broadcaster
+  @type module_configuration :: %{required(String.t()) => module_description}
+
+  def part1(input) do
+    init_conf =
+      input
+      |> parse_input()
+      |> add_output_modules()
+      |> reset_conjunction_memories()
+
+    init_counter = %{
+      true => 0,
+      false => 0,
+      nil => 0
+    }
+
+    {conf, counter} =
+      Enum.reduce(1..1000, {init_conf, init_counter}, fn _, {conf, counter} ->
+        queue = :queue.new()
+        queue = :queue.in({"broadcaster", false, "button"}, queue)
+        counter = Map.update!(counter, false, &(&1 + 1))
+        propagate_pulse(conf, counter, queue)
+      end)
+
+    IO.inspect(conf["rx"])
+
+    counter[true] * counter[false]
+  end
+
+  def part2(input) do
+    init_conf =
+      input
+      |> parse_input()
+      |> reset_conjunction_memories()
+      |> add_output_modules()
+
+    init_counter = %{
+      true => 0,
+      false => 0,
+      nil => 0
+    }
+
+    stream =
+      Stream.iterate({init_conf, init_counter}, fn {conf, counter} ->
+        queue = :queue.new()
+        queue = :queue.in({"broadcaster", false, "button"}, queue)
+        counter = Map.update!(counter, false, &(&1 + 1))
+        propagate_pulse(conf, counter, queue)
+      end)
+
+    Enum.reduce_while(stream, nil, fn {conf, _}, _ ->
+      rx_low_pulse_count = conf["rx"] |> elem(1)
+
+      if rx_low_pulse_count == 0 do
+        {:conjont, nil}
+      else
+        {:halt, rx_low_pulse_count}
+      end
+    end)
+  end
+
+  @doc """
+  Parses the input module configuration
+
+  ## Examples
+
+    iex> Day20.parse_input("broadcaster -> a, b, c\\n%a -> b, c\\n%b -> c\\n&c -> output")
+    %{
+      "broadcaster" => {:broad, nil, ["a", "b", "c"]},
+      "a" => {:flip, false, ["b", "c"]},
+      "b" => {:flip, false, ["c"]},
+      "c" => {:conj, nil, ["output"]}
+    }
+  """
+  @spec parse_input(String.t()) :: module_configuration
+  def parse_input(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.reduce(%{}, fn line, acc ->
+      [part1, part2] = String.split(line, " -> ", parts: 2)
+      destinations = String.split(part2, ", ", trim: true)
+
+      {name, description} =
+        case part1 do
+          "%" <> name -> {name, {:flip, false, destinations}}
+          "&" <> name -> {name, {:conj, nil, destinations}}
+          "broadcaster" -> {"broadcaster", {:broad, nil, destinations}}
+        end
+
+      Map.put(acc, name, description)
+    end)
+  end
+
+  @doc """
+  Resets the memories of conjunctions in a memory configuration.
+
+  ## Examples
+
+    iex> Day20.reset_conjunction_memories(%{
+    ...>   "broadcaster" => {:broad, nil, ["a", "b", "c"]},
+    ...>   "a" => {:flip, false, ["b", "c"]},
+    ...>   "b" => {:flip, false, ["c"]},
+    ...>   "c" => {:conj, %{}, ["output"]}
+    ...> })
+    %{
+      "broadcaster" => {:broad, nil, ["a", "b", "c"]},
+      "a" => {:flip, false, ["b", "c"]},
+      "b" => {:flip, false, ["c"]},
+      "c" => {:conj, %{"b" => false, "a" => false, "broadcaster" => false}, ["output"]}
+    }
+  """
+  @spec reset_conjunction_memories(module_configuration) :: module_configuration
+  def reset_conjunction_memories(configuration) do
+    inverse =
+      Enum.reduce(configuration, %{}, fn {name, module}, acc ->
+        case module do
+          {_, _, destinations} ->
+            destinations
+            |> Enum.map(fn destination -> {destination, MapSet.new([name])} end)
+            |> Map.new()
+            |> Map.merge(acc, fn _k, v1, v2 -> MapSet.union(v1, v2) end)
+        end
+      end)
+
+    Enum.reduce(configuration, %{}, fn {name, description}, acc ->
+      case description do
+        {:conj, _, destinations} ->
+          memory =
+            Enum.reduce(inverse[name], %{}, fn sender, acc ->
+              Map.put(acc, sender, false)
+            end)
+
+          Map.put(acc, name, {:conj, memory, destinations})
+
+        other ->
+          Map.put(acc, name, other)
+      end
+    end)
+  end
+
+  @doc """
+  Add output modules to a module configuration
+
+  ## Examples
+
+    iex> Day20.add_output_modules(%{
+    ...>   "broadcaster" => {:broad, nil, ["a", "b", "c"]},
+    ...>   "a" => {:flip, false, ["b", "c"]},
+    ...>   "b" => {:flip, false, ["c"]},
+    ...>   "c" => {:conj, %{}, ["output"]}
+    ...> })
+    %{
+      "broadcaster" => {:broad, nil, ["a", "b", "c"]},
+      "a" => {:flip, false, ["b", "c"]},
+      "b" => {:flip, false, ["c"]},
+      "c" => {:conj, %{}, ["output"]},
+      "output" => {:output, nil, []},
+      "rx" => {:rx, 0, []},
+    }
+  """
+  @spec add_output_modules(module_configuration) :: module_configuration
+  def add_output_modules(configuration) do
+    configuration
+    |> Map.put("output", {:output, nil, []})
+    |> Map.put("rx", {:rx, 0, []})
+  end
+
+  defp propagate_pulse(conf, counter, queue) do
+    case :queue.out(queue) do
+      {:empty, _} ->
+        {conf, counter}
+
+      {{:value, {name, pulse, sender}}, queue} ->
+        # IO.puts("#{sender} -#{if input, do: "high", else: "low"}-> #{name}")
+        {type, state, destinations} = conf[name]
+
+        {state, to_send} =
+          case compute_pulse(type, state, sender, pulse) do
+            {:send, output, state} ->
+              {state, Enum.map(destinations, &{name, &1, output})}
+
+            {:no_send, state} ->
+              {state, []}
+          end
+
+        conf = Map.put(conf, name, {type, state, destinations})
+
+        queue =
+          Enum.reduce(to_send, queue, fn {name, destination, output}, acc ->
+            :queue.in({destination, output, name}, acc)
+          end)
+
+        counter =
+          Enum.reduce(to_send, counter, fn {_, _, output}, acc ->
+            Map.update!(acc, output, &(&1 + 1))
+          end)
+
+        propagate_pulse(conf, counter, queue)
+    end
+  end
+
+  defp compute_pulse(:rx, state, true, _sender), do: {:nosend, state}
+  defp compute_pulse(:rx, state, false, _sender), do: {:nosend, state + 1}
+  defp compute_pulse(:output, state, _signal, _sender), do: {:no_send, state}
+  defp compute_pulse(:flip, state, true, _sender), do: {:no_send, state}
+  defp compute_pulse(:flip, state, false, _sender), do: {:send, not state, not state}
+  defp compute_pulse(:broad, state, signal, _sender), do: {:send, signal, state}
+
+  defp compute_pulse(:conj, state, signal, sender) do
+    state = Map.put(state, sender, signal)
+    output = not (state |> Map.values() |> Enum.all?())
+    {:send, output, state}
+  end
+end
+
+defmodule Day20Test do
+  use ExUnit.Case
+
+  @example1_input """
+  broadcaster -> a, b, c
+  %a -> b
+  %b -> c
+  %c -> inv
+  &inv -> a
+  """
+
+  @example2_input """
+  broadcaster -> a
+  %a -> inv, con
+  &inv -> b
+  %b -> con
+  &con -> output
+  """
+
+  test "Part 1: Example 1 Input" do
+    assert 32_000_000 == Day20.part1(@example1_input)
+  end
+
+  test "Part 1: Example 2 Input" do
+    assert 11_687_500 == Day20.part1(@example2_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 883_726_240 ==
+             "/Users/polmiro/Development/aoc/2023/day-20/input.txt"
+             |> File.read!()
+             |> Day20.part1()
+  end
+
+  # test "Part 2: Input File" do
+  #   assert 0 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-20/input.txt"
+  #            |> File.read!()
+  #            |> Day20.part2()
+  # end
+end
+
+ExUnit.run()
+```
