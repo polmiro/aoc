@@ -1,0 +1,133 @@
+# Day 21: Step Counter
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day21 do
+  def part1(input, steps) do
+    {grid, start} = parse_input(input)
+
+    answer = MapSet.new()
+    seen = MapSet.new()
+    queue = :queue.new()
+    queue = :queue.in({start, steps}, queue)
+    count_steps(grid, queue, seen, answer)
+  end
+
+  def count_steps(grid, queue, seen, answer) do
+    case :queue.out(queue) do
+      {:empty, _} ->
+        MapSet.size(answer)
+
+      {{:value, {position, steps}}, queue} ->
+        answer = if rem(steps, 2) == 0, do: MapSet.put(answer, position), else: answer
+
+        if MapSet.member?(seen, position) do
+          count_steps(grid, queue, seen, answer)
+        else
+          seen = MapSet.put(seen, position)
+
+          queue =
+            for next <- moves(grid, seen, position), steps > 0, reduce: queue do
+              acc ->
+                :queue.in({next, steps - 1}, acc)
+            end
+
+          count_steps(grid, queue, seen, answer)
+        end
+    end
+  end
+
+  def moves(grid, seen, {i, j}) do
+    [{i, j - 1}, {i - 1, j}, {i + 1, j}, {i, j + 1}]
+    |> Enum.map(fn position -> {position, grid[position]} end)
+    |> Enum.filter(fn {position, land} -> land == :. && not MapSet.member?(seen, position) end)
+    |> Enum.map(fn {position, _} -> position end)
+  end
+
+  # def part2(input) do
+  # end
+
+  @doc """
+  Parses the grid of land.
+
+  ## Examples
+
+    iex> Day21.parse_input("#..\\n.S#")
+    {
+      %{
+        {0, 0} => :R, {0, 1} => :., {0, 2} => :.,
+        {1, 0} => :., {1, 1} => :., {1, 2} => :R
+      },
+      {1, 1}
+    }
+  """
+  def parse_input(input) do
+    {positions, start} =
+      input
+      |> String.split("\n", trim: true)
+      |> Enum.with_index()
+      |> Enum.flat_map_reduce(nil, fn {line, i}, acc ->
+        line
+        |> String.codepoints()
+        |> Enum.with_index()
+        |> Enum.map_reduce(acc, fn
+          {"S", j}, _ -> {{{i, j}, :.}, {i, j}}
+          {".", j}, s -> {{{i, j}, :.}, s}
+          {"#", j}, s -> {{{i, j}, :R}, s}
+        end)
+      end)
+
+    grid = Map.new(positions)
+
+    {grid, start}
+  end
+end
+
+defmodule Day21Test do
+  use ExUnit.Case
+
+  @example_input """
+  ...........
+  .....###.#.
+  .###.##..#.
+  ..#.#...#..
+  ....#.#....
+  .##..S####.
+  .##..#...#.
+  .......##..
+  .##.#.####.
+  .##..##.##.
+  ...........
+  """
+
+  test "Part 1: Example 1 Input" do
+    assert 16 == Day21.part1(@example_input, 6)
+  end
+
+  test "Part 1: Example 2 Input" do
+    assert 42 == Day21.part1(@example_input, 64)
+  end
+
+  test "Part 1: Input File" do
+    assert 3646 ==
+             "/Users/polmiro/Development/aoc/2023/day-21/input.txt"
+             |> File.read!()
+             |> Day21.part1(64)
+  end
+
+  # test "Part 2: Input File" do
+  #   assert 0 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-21/input.txt"
+  #            |> File.read!()
+  #            |> Day21.part2()
+  # end
+end
+
+ExUnit.run()
+```
