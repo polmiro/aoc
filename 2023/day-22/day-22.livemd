@@ -1,0 +1,147 @@
+# Day 22: Sand Slabs
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day22 do
+  @type brick :: {Range.t(), Range.t(), Range.t()}
+
+  def part1(input) do
+    input
+    |> parse_bricks()
+    |> fall()
+    |> count_disintegrable()
+  end
+
+  def fall(bricks) do
+    max_x = Enum.map(bricks, fn {_..x_to, _, _} -> x_to end) |> Enum.max()
+    max_y = Enum.map(bricks, fn {_, _..y_to, _} -> y_to end) |> Enum.max()
+
+    heights = Map.new(for x <- 0..max_x, y <- 0..max_y, do: {{x, y}, 0})
+
+    fall(bricks, heights, [])
+  end
+
+  def fall([], _, settled), do: Enum.reverse(settled)
+
+  def fall([{xr, yr, zr} | bricks], heights, settled) do
+    min_z = 1 + Enum.max(for x <- xr, y <- yr, do: heights[{x, y}])
+    max_z = min_z + Range.size(zr) - 1
+
+    fallen_brick = {xr, yr, min_z..max_z}
+
+    new_heights =
+      for x <- xr, y <- yr, reduce: heights do
+        acc -> Map.put(acc, {x, y}, max_z)
+      end
+
+    fall(bricks, new_heights, [fallen_brick | settled])
+  end
+
+  def count_disintegrable(bricks) do
+    support_of =
+      Enum.reduce(bricks, %{}, fn brick, acc_ext ->
+        bricks
+        |> Enum.filter(&overlapping_xy?(&1, brick))
+        |> Enum.filter(&touching_z?(& 1, brick))
+        |> Enum.reduce(acc_ext, fn supported, acc ->
+          Map.update(acc, supported, [brick], fn l -> [brick | l] end)
+        end)
+      end)
+      |> IO.inspect()
+
+    supported_by =
+      Enum.reduce(support_of, %{}, fn {support, supported}, acc_ext ->
+        Enum.reduce(supported, acc_ext, fn brick, acc ->
+          Map.update(acc, brick, [support], fn l -> [support | l] end)
+        end)
+      end)
+      |> IO.inspect()
+
+    Enum.count(bricks, fn brick ->
+      case supported_by[brick] do
+        nil -> true
+        supported -> Enum.all?(supported, fn b -> length(support_of[b]) > 1 end)
+      end
+    end)
+  end
+
+  defp overlapping_xy?({x, y, _}, {cx, cy, _}) do
+    not (Range.disjoint?(x, cx) && Range.disjoint?(y, cy))
+  end
+
+  defp touching_z?({_, _, _..z_to}, {_, _, cz_from.._}) do
+    z_to + 1 == cz_from
+  end
+
+  @doc """
+  Parses input into a list of bricks.
+
+  ## Example
+
+    iex> Day22.parse_bricks("0,0,2~2,0,2\\n1,0,1~1,2,1")
+    [{1..1, 0..2, 1..1}, {0..2, 0..0, 2..2}]
+  """
+  @spec parse_bricks(String.t()) :: list(brick)
+  def parse_bricks(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      line
+      |> String.split("~", parts: 2)
+      |> Enum.map(fn part ->
+        part
+        |> String.split(",", parts: 3)
+        |> Enum.map(&String.to_integer/1)
+      end)
+      |> Enum.zip()
+      |> Enum.map(fn {from, to} -> from..to end)
+      |> List.to_tuple()
+    end)
+    |> Enum.sort_by(fn {_x, _y, z_from.._z_to} -> z_from end)
+  end
+end
+
+defmodule Day22Test do
+  use ExUnit.Case
+
+  @example_input """
+  1,0,1~1,2,1
+  0,0,2~2,0,2
+  0,2,3~2,2,3
+  0,0,4~0,2,4
+  2,0,5~2,2,5
+  0,1,6~2,1,6
+  1,1,8~1,1,9
+  """
+
+  test "Part 1: Example Input" do
+    assert 5 == Day22.part1(@example_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 0 ==
+             "/Users/polmiro/Development/aoc/2023/day-22/input.txt"
+             |> File.read!()
+             |> Day22.part1()
+  end
+
+  # test "Part 2: Input File" do
+  #   assert 0 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-22/input.txt"
+  #            |> File.read!()
+  #            |> Day22.part1()
+  # end
+end
+
+ExUnit.run()
+```
+
+```elixir
+
+```

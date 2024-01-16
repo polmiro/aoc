@@ -1,0 +1,90 @@
+# Day 25: Snowverload
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day25 do
+  def part1(input) do
+    graph = parse_input(input)
+
+    graph
+    |> Enum.map(fn {origin, destinations} ->
+      {origin, Enum.count(destinations)}
+    end)
+    |> Enum.sort_by(fn {x, y} -> y end, :asc)
+
+    # |> Map.new()
+  end
+
+  def parse_input(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.reduce(%{}, fn line, acc_ext ->
+      [origin, part2] = String.split(line, ":", parts: 2, trim: true)
+      destinations = String.split(part2) |> MapSet.new()
+
+      acc_ext =
+        Map.update(acc_ext, origin, destinations, fn existing ->
+          MapSet.union(existing, destinations)
+        end)
+
+      origins = MapSet.new([origin])
+
+      Enum.reduce(destinations, acc_ext, fn destination, acc ->
+        Map.update(acc, destination, origins, fn existing ->
+          MapSet.union(existing, origins)
+        end)
+      end)
+    end)
+  end
+end
+
+defmodule Day25Test do
+  use ExUnit.Case
+
+  @example_input """
+  jqt: rhn xhk nvd
+  rsh: frs pzl lsr
+  xhk: hfx
+  cmg: qnr nvd lhk bvb
+  rhn: xhk bvb hfx
+  bvb: xhk hfx
+  pzl: lsr hfx nvd
+  qnr: nvd
+  ntq: jqt hfx bvb xhk
+  nvd: lhk
+  lsr: lhk
+  rzs: qnr cmg lsr rsh
+  frs: qnr lhk lsr
+  """
+
+  test "Part 1: Example Input" do
+    assert 0 == Day25.part1(@example_input)
+  end
+
+  test "Part 1: Input File" do
+    assert 0 ==
+             "/Users/polmiro/Development/aoc/2023/day-25/input.txt"
+             |> File.read!()
+             |> Day25.part1()
+  end
+
+  # test "Part 2: Example Input" do
+  #   assert 0 == Day25.part2(@example_input)
+  # end
+
+  # test "Part 2: Input File" do
+  #   assert 0 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-25/input.txt"
+  #            |> File.read!()
+  #            |> Day25.part2()
+  # end
+end
+
+ExUnit.run()
+```

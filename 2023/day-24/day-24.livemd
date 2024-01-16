@@ -1,0 +1,118 @@
+# Day 24: Never Tell Me The Odds
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+## Solution
+
+```elixir
+defmodule Day24 do
+  def part1(input, area) do
+    hailstones = parse_input(input)
+
+    pairs =
+      for h1 <- hailstones,
+          h2 <- hailstones,
+          h1 != h2 && h1 < h2,
+          do: {h1, h2}
+
+    Enum.count(pairs, &colliding?(&1, area))
+  end
+
+  def parse_input(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      [part1, part2] = String.split(line, " @ ", parts: 2, trim: true)
+
+      [px, py, pz] =
+        part1
+        |> String.split(", ", parts: 3)
+        |> Enum.map(&String.trim/1)
+        |> Enum.map(&String.to_integer/1)
+
+      [vx, vy, vz] =
+        part2
+        |> String.split(", ", parts: 3)
+        |> Enum.map(&String.trim/1)
+        |> Enum.map(&String.to_integer/1)
+
+      {{px, py, pz}, {vx, vy, vz}}
+    end)
+  end
+
+  def colliding?({h1, h2}, area) do
+    line1 = line(h1)
+    line2 = line(h2)
+
+    if not parallel?(line1, line2) do
+      point = intersection(line1, line2)
+      in_front?(point, h1) && within?(point, area)
+    end
+  end
+
+  def line({{px, py, _}, {vx, vy, _}}) do
+    m = vy / vx
+    c = py - m * px
+    {m, c}
+  end
+
+  def parallel?({m1, _c1}, {m2, _c2}) do
+    m1 == m2
+  end
+
+  def intersection({m1, c1}, {m2, c2}) do
+    x = (c2 - c1) / (m1 - m2)
+    y = m1 * x + c1
+    {x, y}
+  end
+
+  def in_front?({x, y}, {{px, py, _}, {vx, vy, _}}) do
+    ((vx > 0 and x > px) or (vx < 0 and x < px)) and
+      ((vy > 0 and y > py) or (vy < 0 and y < py))
+  end
+
+  def within?({x, y}, {a_min, a_max}) do
+    x >= a_min and x <= a_max and
+      y >= a_min and y <= a_max
+  end
+end
+
+defmodule Day24Test do
+  use ExUnit.Case
+
+  @example_input """
+  19, 13, 30 @ -2,  1, -2
+  18, 19, 22 @ -1, -1, -2
+  20, 25, 34 @ -2, -2, -4
+  12, 31, 28 @ -1, -2, -1
+  20, 19, 15 @  1, -5, -3
+  """
+
+  test "Part 1: Example Input" do
+    assert 2 == Day24.part1(@example_input, {7, 27})
+  end
+
+  test "Part 1: Input File" do
+    assert 0 ==
+             "/Users/polmiro/Development/aoc/2023/day-24/input.txt"
+             |> File.read!()
+             |> Day24.part1({200_000_000_000_000, 400_000_000_000_000})
+  end
+
+  # test "Part 2: Example Input" do
+  #   assert 0 == Day24.part2(@example_input)
+  # end
+
+  # test "Part 2: Input File" do
+  #   assert 0 ==
+  #            "/Users/polmiro/Development/aoc/2023/day-24/input.txt"
+  #            |> File.read!()
+  #            |> Day24.part2()
+  # end
+end
+
+ExUnit.run()
+```
